@@ -36,7 +36,6 @@ class GedcomParser
                 $bar->advance();
             }
         }
-
         foreach ($families as $family) {
             $this->getFamily($family);
             if ($progressBar === true) {
@@ -72,15 +71,26 @@ class GedcomParser
 
     private function getPerson($individual)
     {
-        $g_id = $individual->getId();
-        $name = '';
-        $givn = '';
-        $surn = '';
+        $g_id  = $individual->getId();
+        $name  =  '';
+        $givn  =  '';
+        $surn  =  '';
+        $date  =  '';
+        $place =  '';
+
 
         if (!empty($individual->getName())) {
-            $surn = current($individual->getName())->getSurn();
-            $givn = current($individual->getName())->getGivn();
-            $name = current($individual->getName())->getName();
+
+
+            $surn  = current($individual->getName())->getSurn();
+            $givn  = current($individual->getName())->getGivn();
+            $name  = current($individual->getName())->getName();
+            if( !empty($individual->getEven('BIRT')) ){
+                $date  = $individual->getEven('BIRT')[0]->getDate()->getDate();
+            }
+            if( !empty($individual->getEven('BIRT')) ){
+                $place = $individual->getEven('BIRT')[0]->getPlac()->getPlac();
+            }
         }
 
         $sex = $individual->getSex();
@@ -90,8 +100,26 @@ class GedcomParser
         if ($givn == "") {
             $givn = $name;
         }
-        $person = Person::create(compact('givn', 'surn', 'sex'));
-        $this->persons_id[$g_id] = $person->id;
+
+        $person = Person::select('*')
+            ->where('givn', $givn)
+            ->where('surn', $surn)
+            ->where('sex', $sex)
+            ->where('date_of_birth', $date)
+            ->where('birth_place', $place)
+            ->get();
+
+        if($person->isEmpty()) {
+            $person  = new Person;
+            $person->givn = $givn;
+            $person->surn = $surn;
+            $person->sex = $sex;
+            $person->date_of_birth = $date;
+            $person->birth_place = $place;
+            $person->save();
+        }
+
+        // $this->persons_id[$g_id] = $person->id;
 
         if ($events !== null) {
             foreach ($events as $event) {
@@ -100,6 +128,7 @@ class GedcomParser
                 $person->addEvent($event->getType(), $date, $place);
             };
         }
+
 
         if ($attr !== null) {
             foreach ($attr as $event) {
@@ -115,7 +144,7 @@ class GedcomParser
         }
     }
 
-    private function getFamily($family)
+    public function getFamily($family)
     {
         $g_id = $family->getId();
         $husb = $family->getHusb();
